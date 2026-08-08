@@ -1,0 +1,80 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root{
+  --ink:#070f0c;
+  --ink-soft:#0e1f17;
+  --paper:#f3f4ea;
+  --paper-dim:#a9b8ab;
+  --moss:#122b20;
+  --moss-line:#1d4231;
+  --emerald:#22a866;
+  --emerald-deep:#0f5c39;
+  --lime:#cdf24f;
+  --clay:#e7c383;
+  --line: rgba(243,244,234,0.14);
+  --radius: 4px;
+}
+
+*{box-sizing:border-box;}
+html,body,#root{height:100%;}
+body{
+  margin:0;
+  background-color:var(--ink);
+  background-image:
+    radial-gradient(1100px 620px at 8% -12%, rgba(34,168,102,0.22), transparent 62%),
+    radial-gradient(900px 520px at 108% 6%, rgba(205,242,79,0.10), transparent 55%);
+  color:var(--paper);
+  font-family:'Space Grotesk', ui-sans-serif, sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+
+.font-display{ font-family:'Bebas Neue', sans-serif; }
+.font-mono{ font-family:'JetBrains Mono', monospace; }
+
+::selection{ background:var(--lime); color:var(--ink); }
+
+::-webkit-scrollbar{ width:9px; height:9px; }
+::-webkit-scrollbar-track{ background:transparent; }
+::-webkit-scrollbar-thumb{ background:var(--moss-line); border-radius:8px; }
+
+@keyframes riseIn{
+  from{ opacity:0; transform:translateY(14px); }
+  to{ opacity:1; transform:translateY(0); }
+}
+.rise-in{ animation:riseIn .55s cubic-bezier(.2,.8,.2,1) both; }
+
+.reveal{
+  opacity:0;
+  transform:translateY(24px);
+  transition:opacity .6s cubic-bezier(.2,.8,.2,1), transform .6s cubic-bezier(.2,.8,.2,1);
+}
+.reveal-visible{ opacity:1; transform:translateY(0); }
+
+@keyframes blink{
+  0%,100%{opacity:1;} 50%{opacity:.15;}
+}
+.blink{ animation:blink 1.6s infinite; }
+
+/* boarding-pass perforation notches */
+.ticket-notch::before, .ticket-notch::after{
+  content:"";
+  position:absolute;
+  width:26px; height:26px;
+  border-radius:50%;
+  background:var(--ink);
+  top:var(--notch-top, 50%);
+  transform:translateY(-50%);
+  z-index:5;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.ticket-notch::before{ left:-13px; }
+.ticket-notch::after{ right:-13px; }
+
+@media (prefers-reduced-motion: reduce){
+  .rise-in, .blink{ animation:none !important; }
+  .reveal{ transition:none; opacity:1; transform:none; }
+}

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "hhgoa-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "hhgoa-src-export", "--", "--port", "5173"],
+      "port": 5173
+    }
+  ]
+}
