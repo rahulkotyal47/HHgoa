@@ -3,24 +3,53 @@ import { builderTitle, randomBuilderTitle } from '@/lib/builderTitle';
 
 export type Format = 'frame' | 'card' | 'team';
 export type CardStyle = 'classic' | 'sunset' | 'mono';
+export type FrameShape = 'circle' | 'squircle' | 'hexagon' | 'octagon' | 'badge';
+export type FrameColor = 'lime' | 'emerald' | 'sunset' | 'cyber' | 'neonpink';
 
-interface Win { x: number; y: number; w: number; h: number; shape: 'circle' | 'rrect'; radius?: number; }
+interface Win { x: number; y: number; w: number; h: number; shape: FrameShape; radius?: number; }
 
 const WINDOWS: Record<Format, Win> = {
-  frame: { x: 190, y: 150, w: 700, h: 700, shape: 'circle' },
-  card: { x: 165, y: 150, w: 750, h: 750, shape: 'rrect', radius: 26 },
-  team: { x: 165, y: 150, w: 750, h: 750, shape: 'rrect', radius: 26 },
+  frame: { x: 190, y: 190, w: 700, h: 700, shape: 'circle' },
+  card: { x: 165, y: 150, w: 750, h: 750, shape: 'squircle', radius: 26 },
+  team: { x: 165, y: 150, w: 750, h: 750, shape: 'squircle', radius: 26 },
 };
 
 const COLORS = {
   ink: '#070f0c',
-  paper: '#f3f4ea',
+  paper: '#ffffff',
   emerald: '#22a866',
   emeraldDeep: '#0f5c39',
   lime: '#cdf24f',
   clay: '#e7c383',
   palm: '#0c2116',
+  neonpink: '#ff2a85',
+  cyberGold: '#ffb800',
 };
+
+export const FRAME_SHAPES: { id: FrameShape; label: string; icon: string }[] = [
+  { id: 'circle', label: 'Circle', icon: '◯' },
+  { id: 'squircle', label: 'Squircle', icon: '▢' },
+  { id: 'hexagon', label: 'Hexagon', icon: '⬡' },
+  { id: 'octagon', label: 'Octagon', icon: '🛑' },
+  { id: 'badge', label: 'Badge', icon: '🛡️' },
+];
+
+export const FRAME_COLORS: { id: FrameColor; label: string; primary: string; secondary: string }[] = [
+  { id: 'lime', label: 'Goa Lime', primary: COLORS.lime, secondary: COLORS.emerald },
+  { id: 'emerald', label: 'Deep Ocean', primary: COLORS.emerald, secondary: '#053d24' },
+  { id: 'sunset', label: 'Goa Sunset', primary: COLORS.clay, secondary: '#c98a4b' },
+  { id: 'cyber', label: 'Cyber Gold', primary: COLORS.cyberGold, secondary: '#d47a00' },
+  { id: 'neonpink', label: 'Neon Pink', primary: COLORS.neonpink, secondary: '#9e0047' },
+];
+
+export const FRAME_BADGES = [
+  'BUILD IN GOA',
+  'SHIPPER',
+  'HH GOA 2026',
+  'FOUNDER',
+  'HACKER',
+  '2:47 PM STUDIO',
+];
 
 export const CARD_STYLES: { id: CardStyle; label: string; accent: string; accentDeep: string }[] = [
   { id: 'classic', label: 'Classic', accent: COLORS.lime, accentDeep: COLORS.emerald },
@@ -29,6 +58,7 @@ export const CARD_STYLES: { id: CardStyle; label: string; accent: string; accent
 ];
 
 function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.arcTo(x + w, y, x + w, y + h, r);
   ctx.arcTo(x + w, y + h, x, y + h, r);
@@ -37,12 +67,75 @@ function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: n
   ctx.closePath();
 }
 
+function hexagonPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 3) * i - Math.PI / 6;
+    const x = cx + r * Math.cos(angle);
+    const y = cy + r * Math.sin(angle);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+}
+
+function octagonPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const angle = (Math.PI / 4) * i - Math.PI / 8;
+    const x = cx + r * Math.cos(angle);
+    const y = cy + r * Math.sin(angle);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+}
+
+function badgePath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
+  ctx.beginPath();
+  const w = r * 1.8;
+  const h = r * 1.9;
+  const x = cx - w / 2;
+  const y = cy - h / 2;
+  const rad = 24;
+  ctx.moveTo(x + rad, y);
+  ctx.lineTo(x + w - rad, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + rad);
+  ctx.lineTo(x + w, y + h * 0.7);
+  ctx.quadraticCurveTo(x + w, y + h, cx, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h * 0.7);
+  ctx.lineTo(x, y + rad);
+  ctx.quadraticCurveTo(x, y, x + rad, y);
+  ctx.closePath();
+}
+
+function drawCustomShapePath(ctx: CanvasRenderingContext2D, shape: FrameShape, x: number, y: number, w: number, h: number, radius = 26) {
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const r = Math.min(w, h) / 2;
+  if (shape === 'circle') {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  } else if (shape === 'hexagon') {
+    hexagonPath(ctx, cx, cy, r);
+  } else if (shape === 'octagon') {
+    octagonPath(ctx, cx, cy, r);
+  } else if (shape === 'badge') {
+    badgePath(ctx, cx, cy, r);
+  } else {
+    roundRectPath(ctx, x, y, w, h, radius);
+  }
+}
+
 function arcText(ctx: CanvasRenderingContext2D, text: string, cx: number, cy: number, radius: number, startAngle: number, spreadAngle: number, font: string, color: string) {
   ctx.save();
   ctx.font = font;
   ctx.fillStyle = color;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.85)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 2;
   const widths: number[] = [];
   let totalW = 0;
   for (const ch of text) { const w = ctx.measureText(ch).width; widths.push(w); totalW += w; }
@@ -85,28 +178,29 @@ function drawPalm(ctx: CanvasRenderingContext2D, x: number, y: number, s: number
 }
 
 function hexToRgb(hex: string): string {
-  const n = parseInt(hex.replace('#', ''), 16);
+  const clean = hex.replace('#', '');
+  const n = parseInt(clean.length === 3 ? clean.split('').map(c => c + c).join('') : clean, 16);
   return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
 }
 
 function drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number, accentHex: string = COLORS.lime, deepHex: string = COLORS.emerald) {
   const deepRgb = hexToRgb(deepHex);
   const g = ctx.createLinearGradient(0, 0, 0, h);
-  g.addColorStop(0, '#070f0c');
-  g.addColorStop(0.42, '#0e2118');
-  g.addColorStop(0.7, `rgba(${deepRgb},0.35)`);
-  g.addColorStop(0.88, deepHex);
+  g.addColorStop(0, '#040b08');
+  g.addColorStop(0.4, '#0a1a12');
+  g.addColorStop(0.7, `rgba(${deepRgb},0.4)`);
+  g.addColorStop(0.9, deepHex);
   g.addColorStop(1, accentHex);
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
 
-  const glowR = w * 0.32;
+  const glowR = w * 0.4;
   const accentRgb = hexToRgb(accentHex);
-  const sg = ctx.createRadialGradient(w / 2, h * 0.87, 0, w / 2, h * 0.87, glowR);
-  sg.addColorStop(0, `rgba(${accentRgb},0.85)`);
+  const sg = ctx.createRadialGradient(w / 2, h * 0.85, 0, w / 2, h * 0.85, glowR);
+  sg.addColorStop(0, `rgba(${accentRgb},0.75)`);
   sg.addColorStop(1, `rgba(${accentRgb},0)`);
   ctx.fillStyle = sg;
-  ctx.beginPath(); ctx.arc(w / 2, h * 0.87, glowR, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(w / 2, h * 0.85, glowR, 0, Math.PI * 2); ctx.fill();
 
   ctx.save();
   ctx.globalAlpha = 0.045;
@@ -138,24 +232,52 @@ function drawPassCard(
   opts: PassOpts,
 ) {
   const { accent, accentDeep } = opts;
+
+  // Background card outline / container plate for high contrast
   ctx.save();
-  ctx.font = "700 30px 'JetBrains Mono', monospace";
-  ctx.fillStyle = accent;
-  ctx.textAlign = 'left';
-  ctx.fillText('HH GOA 2026', 60, 90);
-  ctx.font = "500 20px 'JetBrains Mono', monospace";
-  ctx.fillStyle = 'rgba(243,244,234,0.75)';
-  ctx.textAlign = 'right';
-  ctx.fillText(opts.kicker, w - 60, 90);
+  const cardPad = 30;
+  const cardW = w - cardPad * 2;
+  const cardH = h - cardPad * 2;
+  roundRectPath(ctx, cardPad, cardPad, cardW, cardH, 20);
+  ctx.fillStyle = 'rgba(7, 15, 12, 0.45)';
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = `rgba(${hexToRgb(accent)}, 0.25)`;
+  ctx.stroke();
   ctx.restore();
 
+  // Header Banner Pill for 100% visible header text
   ctx.save();
-  ctx.translate(w - 110, 170);
+  roundRectPath(ctx, 45, 45, w - 90, 70, 12);
+  ctx.fillStyle = 'rgba(4, 11, 8, 0.85)';
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = `rgba(${hexToRgb(accent)}, 0.4)`;
+  ctx.stroke();
+
+  ctx.font = "700 28px 'JetBrains Mono', monospace";
+  ctx.fillStyle = accent;
+  ctx.textAlign = 'left';
+  ctx.shadowColor = 'rgba(0,0,0,0.9)';
+  ctx.shadowBlur = 6;
+  ctx.fillText('HH GOA 2026', 70, 88);
+
+  ctx.font = "700 18px 'JetBrains Mono', monospace";
+  ctx.fillStyle = COLORS.paper;
+  ctx.textAlign = 'right';
+  ctx.fillText(opts.kicker, w - 70, 88);
+  ctx.restore();
+
+  // Stamp Badge
+  ctx.save();
+  ctx.translate(w - 110, 175);
   ctx.rotate(-0.18);
   ctx.beginPath();
   ctx.setLineDash([4, 6]);
-  ctx.arc(0, 0, 58, 0, Math.PI * 2);
-  ctx.strokeStyle = `rgba(${hexToRgb(accent)},0.7)`;
+  ctx.arc(0, 0, 56, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(7, 15, 12, 0.8)';
+  ctx.fill();
+  ctx.strokeStyle = accent;
   ctx.lineWidth = 2.5;
   ctx.stroke();
   ctx.setLineDash([]);
@@ -166,6 +288,7 @@ function drawPassCard(
   ctx.fillText(opts.badgeLine2, 0, 12);
   ctx.restore();
 
+  // Photo Frame Corners
   ctx.save();
   ctx.strokeStyle = accent;
   ctx.lineWidth = 5;
@@ -180,6 +303,7 @@ function drawPassCard(
   });
   ctx.restore();
 
+  // Photo
   if (img) {
     ctx.save();
     ctx.beginPath();
@@ -191,43 +315,67 @@ function drawPassCard(
     ctx.save();
     ctx.beginPath();
     roundRectPath(ctx, winRect.x, winRect.y, winRect.w, winRect.h, winRect.radius || 0);
-    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
     ctx.fill();
-    ctx.font = "400 20px 'JetBrains Mono', monospace";
-    ctx.fillStyle = 'rgba(243,244,234,0.4)';
+    ctx.font = "600 20px 'JetBrains Mono', monospace";
+    ctx.fillStyle = 'rgba(243,244,234,0.7)';
     ctx.textAlign = 'center';
     ctx.fillText(opts.uploadPlaceholder, winRect.x + winRect.w / 2, winRect.y + winRect.h / 2);
     ctx.restore();
   }
+
+  // Photo Inner Border
   ctx.save();
   ctx.beginPath();
   roundRectPath(ctx, winRect.x, winRect.y, winRect.w, winRect.h, winRect.radius || 0);
   ctx.lineWidth = 4;
-  ctx.strokeStyle = 'rgba(7,15,12,0.7)';
+  ctx.strokeStyle = 'rgba(7,15,12,0.8)';
   ctx.stroke();
   ctx.restore();
 
+  // Info Backplate for 100% High Contrast Text Visibility
+  ctx.save();
+  const infoX = 55;
+  const infoY = 945;
+  const infoW = w - 110;
+  const infoH = 205;
+  roundRectPath(ctx, infoX, infoY, infoW, infoH, 16);
+  ctx.fillStyle = 'rgba(7, 15, 12, 0.88)';
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = `rgba(${hexToRgb(accent)}, 0.35)`;
+  ctx.stroke();
+  ctx.restore();
+
+  // Name
   const displayName = name || opts.namePlaceholder;
   ctx.save();
-  ctx.font = "700 68px 'Bebas Neue', sans-serif";
-  ctx.fillStyle = COLORS.paper;
+  ctx.font = "700 64px 'Bebas Neue', sans-serif";
+  ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
-  ctx.fillText(displayName.toUpperCase(), w / 2, 1010);
+  ctx.shadowColor = 'rgba(0,0,0,0.9)';
+  ctx.shadowBlur = 10;
+  ctx.shadowOffsetY = 3;
+  ctx.fillText(displayName.toUpperCase(), w / 2, 1005);
   ctx.restore();
 
+  // Role / Stack
   const displayRole = role || opts.rolePlaceholder;
   ctx.save();
-  ctx.font = "500 26px 'JetBrains Mono', monospace";
-  ctx.fillStyle = 'rgba(243,244,234,0.85)';
+  ctx.font = "600 24px 'JetBrains Mono', monospace";
+  ctx.fillStyle = accent;
   ctx.textAlign = 'center';
-  ctx.fillText('> ' + displayRole, w / 2, 1050);
+  ctx.shadowColor = 'rgba(0,0,0,0.9)';
+  ctx.shadowBlur = 6;
+  ctx.fillText('> ' + displayRole, w / 2, 1045);
   ctx.restore();
 
+  // Tag Badge
   ctx.save();
-  ctx.font = "700 24px 'JetBrains Mono', monospace";
+  ctx.font = "700 22px 'JetBrains Mono', monospace";
   const label = '⚡ ' + tag.toUpperCase();
   const tw = ctx.measureText(label).width + 56;
-  const px = w / 2 - tw / 2, py = 1090, ph = 54;
+  const px = w / 2 - tw / 2, py = 1080, ph = 50;
   ctx.beginPath();
   roundRectPath(ctx, px, py, tw, ph, ph / 2);
   const pg = ctx.createLinearGradient(px, 0, px + tw, 0);
@@ -237,24 +385,33 @@ function drawPassCard(
   ctx.fillStyle = COLORS.ink;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(label, w / 2, py + ph / 2 + 2);
+  ctx.fillText(label, w / 2, py + ph / 2 + 1);
   ctx.restore();
 
+  // Dotted Line
   ctx.save();
   ctx.setLineDash([6, 8]);
-  ctx.strokeStyle = 'rgba(243,244,234,0.3)';
-  ctx.beginPath(); ctx.moveTo(50, 1180); ctx.lineTo(w - 50, 1180); ctx.stroke();
+  ctx.strokeStyle = 'rgba(243,244,234,0.35)';
+  ctx.beginPath(); ctx.moveTo(50, 1175); ctx.lineTo(w - 50, 1175); ctx.stroke();
   ctx.setLineDash([]);
   ctx.restore();
 
+  // Footer Banner Pill for 100% Readability
   ctx.save();
-  ctx.font = "500 20px 'JetBrains Mono', monospace";
-  ctx.fillStyle = 'rgba(243,244,234,0.7)';
+  roundRectPath(ctx, 45, 1192, w - 90, 56, 12);
+  ctx.fillStyle = 'rgba(4, 11, 8, 0.9)';
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = `rgba(${hexToRgb(accent)}, 0.4)`;
+  ctx.stroke();
+
+  ctx.font = "600 19px 'JetBrains Mono', monospace";
+  ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'left';
-  ctx.fillText('GOA, INDIA · 28–31 OCT 2026', 60, 1230);
+  ctx.fillText('GOA, INDIA · 28–31 OCT 2026', 65, 1227);
   ctx.fillStyle = accent;
   ctx.textAlign = 'right';
-  ctx.fillText('#FrameInGoa', w - 60, 1230);
+  ctx.fillText('#FrameInGoa', w - 65, 1227);
   ctx.restore();
 
   drawPalm(ctx, 70, h - 60, 0.75, 'rgba(12,33,22,0.85)');
@@ -264,6 +421,9 @@ function drawPassCard(
 export function useFrameGenerator() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [format, setFormatState] = useState<Format>('frame');
+  const [frameShape, setFrameShape] = useState<FrameShape>('circle');
+  const [frameColor, setFrameColor] = useState<FrameColor>('lime');
+  const [frameBadge, setFrameBadge] = useState<string>('BUILD IN GOA');
   const [hasImage, setHasImage] = useState(false);
   const [zoom, setZoom] = useState(0);
   const [name, setName] = useState('');
@@ -283,7 +443,13 @@ export function useFrameGenerator() {
   const geo = useRef({ baseScale: 1, scale: 1, offX: 0, offY: 0 });
   const lastPointer = useRef({ x: 0, y: 0 });
 
-  const win = useCallback((): Win => WINDOWS[format], [format]);
+  const win = useCallback((): Win => {
+    const base = WINDOWS[format];
+    if (format === 'frame') {
+      return { ...base, shape: frameShape };
+    }
+    return base;
+  }, [format, frameShape]);
 
   const fitImage = useCallback(() => {
     const img = imgRef.current;
@@ -316,54 +482,50 @@ export function useFrameGenerator() {
     const img = imgRef.current;
     const w = canvas.width, h = canvas.height;
     const winRect = win();
+
+    const activeFrameColor = FRAME_COLORS.find(c => c.id === frameColor) || FRAME_COLORS[0];
     const activeStyle = format === 'card'
       ? (CARD_STYLES.find((s) => s.id === cardStyle) || CARD_STYLES[0])
-      : { accent: COLORS.lime, accentDeep: COLORS.emerald };
+      : { accent: activeFrameColor.primary, accentDeep: activeFrameColor.secondary };
 
     drawBackground(ctx, w, h, activeStyle.accent, activeStyle.accentDeep);
 
     const drawPhoto = () => {
       if (!img) return;
       ctx.save();
-      ctx.beginPath();
-      if (winRect.shape === 'circle') {
-        const r = Math.min(winRect.w, winRect.h) / 2;
-        ctx.arc(winRect.x + winRect.w / 2, winRect.y + winRect.h / 2, r, 0, Math.PI * 2);
-      } else {
-        roundRectPath(ctx, winRect.x, winRect.y, winRect.w, winRect.h, winRect.radius || 0);
-      }
+      drawCustomShapePath(ctx, winRect.shape, winRect.x, winRect.y, winRect.w, winRect.h, winRect.radius || 26);
       ctx.clip();
       ctx.drawImage(img, geo.current.offX, geo.current.offY, img.width * geo.current.scale, img.height * geo.current.scale);
       ctx.restore();
     };
 
     if (format === 'frame') {
+      // PFP Frame 1080 x 1080 px layout
       drawPalm(ctx, 70, h - 40, 1.0, 'rgba(12,33,22,0.9)');
       drawPalm(ctx, w - 70, h - 40, -1.0, 'rgba(12,33,22,0.9)');
 
-      const cx = w / 2, cy = 500, r = 360;
+      const cx = w / 2, cy = h / 2, r = winRect.w / 2;
+
+      // Outer Glow & Border Accent Ring
       ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, r + 22, 0, Math.PI * 2);
-      if ((ctx as any).createConicGradient) {
-        const cg = (ctx as any).createConicGradient(-Math.PI / 2, cx, cy);
-        cg.addColorStop(0, COLORS.lime);
-        cg.addColorStop(0.33, COLORS.emerald);
-        cg.addColorStop(0.66, COLORS.emeraldDeep);
-        cg.addColorStop(1, COLORS.lime);
-        ctx.strokeStyle = cg;
-      } else {
-        ctx.strokeStyle = COLORS.emerald;
-      }
-      ctx.lineWidth = 22;
+      drawCustomShapePath(ctx, winRect.shape, winRect.x - 18, winRect.y - 18, winRect.w + 36, winRect.h + 36, (winRect.radius || 26) + 18);
+      ctx.lineWidth = 18;
+      const strokeGrad = ctx.createLinearGradient(0, 0, w, h);
+      strokeGrad.addColorStop(0, activeFrameColor.primary);
+      strokeGrad.addColorStop(0.5, activeFrameColor.secondary);
+      strokeGrad.addColorStop(1, activeFrameColor.primary);
+      ctx.strokeStyle = strokeGrad;
+      ctx.shadowColor = activeFrameColor.primary;
+      ctx.shadowBlur = 20;
       ctx.stroke();
       ctx.restore();
 
+      // Draw user uploaded photo clipped to shape
       drawPhoto();
 
+      // Shape Inner Frame Border
       ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      drawCustomShapePath(ctx, winRect.shape, winRect.x, winRect.y, winRect.w, winRect.h, winRect.radius || 26);
       ctx.lineWidth = 6;
       ctx.strokeStyle = COLORS.ink;
       ctx.stroke();
@@ -371,25 +533,65 @@ export function useFrameGenerator() {
 
       if (!img) {
         ctx.save();
-        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,0.03)'; ctx.fill();
+        drawCustomShapePath(ctx, winRect.shape, winRect.x, winRect.y, winRect.w, winRect.h, winRect.radius || 26);
+        ctx.fillStyle = 'rgba(255,255,255,0.04)';
+        ctx.fill();
+        ctx.font = "600 22px 'JetBrains Mono', monospace";
+        ctx.fillStyle = 'rgba(243,244,234,0.6)';
+        ctx.textAlign = 'center';
+        ctx.fillText('upload a photo', cx, cy);
         ctx.restore();
       }
 
-      arcText(ctx, 'HH GOA 2026', cx, cy, r + 70, Math.PI / 2, Math.PI * 0.62, "700 40px 'Bebas Neue', sans-serif", COLORS.paper);
+      // Curved Arc Text
+      arcText(ctx, 'HH GOA 2026', cx, cy, r + 68, Math.PI / 2, Math.PI * 0.65, "700 42px 'Bebas Neue', sans-serif", COLORS.paper);
 
+      // Top Header Pill
       ctx.save();
-      ctx.font = "500 24px 'JetBrains Mono', monospace";
-      ctx.fillStyle = COLORS.lime;
+      roundRectPath(ctx, cx - 180, 24, 360, 46, 23);
+      ctx.fillStyle = 'rgba(4, 11, 8, 0.85)';
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = activeFrameColor.primary;
+      ctx.stroke();
+
+      ctx.font = "700 20px 'JetBrains Mono', monospace";
+      ctx.fillStyle = activeFrameColor.primary;
       ctx.textAlign = 'center';
-      ctx.fillText('▍ GOA · 28–31 OCT', cx, 66);
+      ctx.fillText('▍ GOA · 28–31 OCT 2026', cx, 53);
       ctx.restore();
 
+      // Bottom Badge Pill
       ctx.save();
-      ctx.font = "400 20px 'JetBrains Mono', monospace";
-      ctx.fillStyle = 'rgba(243,244,234,0.55)';
-      ctx.textAlign = 'right';
-      ctx.fillText('2:47 PM STUDIO', w - 40, h - 40);
+      const badgeStr = '⚡ ' + (frameBadge || 'BUILD IN GOA').toUpperCase();
+      ctx.font = "700 20px 'JetBrains Mono', monospace";
+      const bWidth = ctx.measureText(badgeStr).width + 48;
+      roundRectPath(ctx, cx - bWidth / 2, h - 70, bWidth, 46, 23);
+      const bGrad = ctx.createLinearGradient(cx - bWidth / 2, 0, cx + bWidth / 2, 0);
+      bGrad.addColorStop(0, activeFrameColor.secondary);
+      bGrad.addColorStop(1, activeFrameColor.primary);
+      ctx.fillStyle = bGrad;
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = COLORS.paper;
+      ctx.stroke();
+
+      ctx.fillStyle = COLORS.ink;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(badgeStr, cx, h - 47);
       ctx.restore();
+
+      // Bottom Right Studio Credit
+      ctx.save();
+      ctx.font = "500 17px 'JetBrains Mono', monospace";
+      ctx.fillStyle = 'rgba(243,244,234,0.7)';
+      ctx.textAlign = 'right';
+      ctx.shadowColor = 'rgba(0,0,0,0.9)';
+      ctx.shadowBlur = 4;
+      ctx.fillText('2:47 PM STUDIO', w - 30, h - 25);
+      ctx.restore();
+
     } else if (format === 'card') {
       const title = titleOverride || builderTitle(name, role) || 'BUILDER';
       drawPassCard(ctx, w, h, winRect, img, geo.current, name, role, title, {
@@ -409,11 +611,11 @@ export function useFrameGenerator() {
         namePlaceholder: 'YOUR TEAM',
         rolePlaceholder: 'project · track',
         uploadPlaceholder: 'upload a team photo or logo',
-        accent: COLORS.lime,
-        accentDeep: COLORS.emerald,
+        accent: activeStyle.accent,
+        accentDeep: activeStyle.accentDeep,
       });
     }
-  }, [format, name, role, win, titleOverride, cardStyle]);
+  }, [format, name, role, win, titleOverride, cardStyle, frameShape, frameColor, frameBadge]);
 
   useEffect(() => { render(); }, [render]);
 
@@ -424,7 +626,10 @@ export function useFrameGenerator() {
   const setFormat = useCallback((fmt: Format) => {
     setFormatState(fmt);
     const canvas = canvasRef.current;
-    if (canvas) { canvas.width = 1080; canvas.height = fmt === 'frame' ? 1080 : 1350; }
+    if (canvas) {
+      canvas.width = 1080;
+      canvas.height = fmt === 'frame' ? 1080 : 1350;
+    }
     setZoom(0);
     if (imgRef.current) {
       requestAnimationFrame(() => { fitImage(); render(); });
@@ -578,13 +783,13 @@ export function useFrameGenerator() {
       URL.revokeObjectURL(url);
 
       const caption = format === 'frame'
-        ? "Locked in for HH GOA 2026 \ud83c\udf34\u2600\ufe0f Here's my #FrameInGoa \u2014 28\u201331 Oct, Goa, India."
+        ? "Locked in for HH GOA 2026 🌴☀️ Here's my #FrameInGoa — 28–31 Oct, Goa, India."
         : format === 'team'
-        ? "Our team pass for HH GOA 2026 is live \ud83e\udd1d #FrameInGoa \u2014 see you on the sand, 28\u201331 Oct."
-        : "My HH GOA 2026 boarding pass is live \u26a1 #FrameInGoa \u2014 see you on the sand, 28\u201331 Oct.";
+        ? "Our team pass for HH GOA 2026 is live 🤝 #FrameInGoa — see you on the sand, 28–31 Oct."
+        : "My HH GOA 2026 boarding pass is live ⚡ #FrameInGoa — see you on the sand, 28–31 Oct.";
       const intent = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(caption);
       window.open(intent, '_blank');
-      setStatus({ msg: 'Graphic downloaded + X compose opened \u2014 attach the image, then post.', kind: 'ok' });
+      setStatus({ msg: 'Graphic downloaded + X compose opened — attach the image, then post.', kind: 'ok' });
     }, 'image/png');
   }, [filename, format]);
 
@@ -595,6 +800,9 @@ export function useFrameGenerator() {
     builderTitlePreview: titleOverride || builderTitle(name, role),
     randomizeTitle,
     cardStyle, setCardStyle,
+    frameShape, setFrameShape,
+    frameColor, setFrameColor,
+    frameBadge, setFrameBadge,
     cameraOpen, cameraReady, cameraError, videoRef, openCamera, closeCamera, capturePhoto,
   };
 }

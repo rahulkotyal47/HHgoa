@@ -74,7 +74,13 @@ body{
 .ticket-notch::before{ left:-13px; }
 .ticket-notch::after{ right:-13px; }
 
+@keyframes bounceDown{
+  0%,100%{ transform:translateY(0); }
+  50%{ transform:translateY(8px); }
+}
+.bounce-arrow{ animation:bounceDown 1.5s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce){
-  .rise-in, .blink{ animation:none !important; }
+  .rise-in, .blink, .bounce-arrow{ animation:none !important; }
   .reveal{ transition:none; opacity:1; transform:none; }
 }
