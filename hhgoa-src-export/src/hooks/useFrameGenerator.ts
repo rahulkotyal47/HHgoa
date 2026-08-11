@@ -127,7 +127,32 @@ function drawCustomShapePath(ctx: CanvasRenderingContext2D, shape: FrameShape, x
   }
 }
 
-function arcText(ctx: CanvasRenderingContext2D, text: string, cx: number, cy: number, radius: number, startAngle: number, spreadAngle: number, font: string, color: string) {
+/**
+ * Draws text along the BOTTOM of a circle, reading left-to-right and right-side up.
+ *
+ * Canvas y grows downward, so the bottom of the circle is at +PI/2. Two things
+ * follow from that and both used to be wrong:
+ *  - glyph rotation must be `mid - PI/2` (at bottom-centre that is 0 = upright).
+ *    `mid + PI/2` is the TOP-arc form and renders bottom text upside down.
+ *  - the sweep has to run from a larger angle to a smaller one, because cos()
+ *    decreases as the angle grows — increasing the angle lays characters out
+ *    right-to-left.
+ * Upside-down plus right-to-left is what read as "mirrored".
+ *
+ * The arc it occupies is derived from the measured text width, so letter spacing
+ * stays natural and the sweep scales with `radius` (i.e. with the frame) instead
+ * of being stretched across a hard-coded angle.
+ */
+function arcTextBottom(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  cx: number,
+  cy: number,
+  radius: number,
+  font: string,
+  color: string,
+  tracking = 1.5,
+) {
   ctx.save();
   ctx.font = font;
   ctx.fillStyle = color;
@@ -136,19 +161,21 @@ function arcText(ctx: CanvasRenderingContext2D, text: string, cx: number, cy: nu
   ctx.shadowColor = 'rgba(0,0,0,0.85)';
   ctx.shadowBlur = 8;
   ctx.shadowOffsetY = 2;
-  const widths: number[] = [];
-  let totalW = 0;
-  for (const ch of text) { const w = ctx.measureText(ch).width; widths.push(w); totalW += w; }
-  let angle = startAngle - spreadAngle / 2;
-  for (let i = 0; i < text.length; i++) {
-    const chAngle = (widths[i] / totalW) * spreadAngle;
-    const mid = angle + chAngle / 2;
+
+  const chars = Array.from(text);
+  const advances = chars.map((ch) => ctx.measureText(ch).width * tracking);
+  const spread = advances.reduce((a, b) => a + b, 0) / radius; // arc length -> radians
+
+  let angle = Math.PI / 2 + spread / 2; // start at the left end of the bottom arc
+  for (let i = 0; i < chars.length; i++) {
+    const step = advances[i] / radius;
+    const mid = angle - step / 2;
     ctx.save();
     ctx.translate(cx + radius * Math.cos(mid), cy + radius * Math.sin(mid));
-    ctx.rotate(mid + Math.PI / 2);
-    ctx.fillText(text[i], 0, 0);
+    ctx.rotate(mid - Math.PI / 2);
+    ctx.fillText(chars[i], 0, 0);
     ctx.restore();
-    angle += chAngle;
+    angle -= step;
   }
   ctx.restore();
 }
@@ -207,6 +234,12 @@ function drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number, acc
   ctx.strokeStyle = COLORS.paper;
   for (let yy = 0; yy < h; yy += 6) { ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(w, yy); ctx.stroke(); }
   ctx.restore();
+}
+
+export function defaultCaption(fmt: Format): string {
+  if (fmt === 'frame') return "Locked in for HH GOA 2026 🌴☀️ Here's my #FrameInGoa — 28–31 Oct, Goa, India.";
+  if (fmt === 'team') return "Our team pass for HH GOA 2026 is live 🤝 #FrameInGoa — see you on the sand, 28–31 Oct.";
+  return "My HH GOA 2026 boarding pass is live ⚡ #FrameInGoa — see you on the sand, 28–31 Oct.";
 }
 
 interface PassOpts {
@@ -433,6 +466,9 @@ export function useFrameGenerator() {
   const [titleOverride, setTitleOverride] = useState<string | null>(null);
   const [cardStyle, setCardStyle] = useState<CardStyle>('classic');
 
+  const [caption, setCaptionState] = useState<string>(() => defaultCaption('frame'));
+  const captionEdited = useRef(false);
+
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState('');
@@ -442,6 +478,25 @@ export function useFrameGenerator() {
   const imgRef = useRef<HTMLImageElement | null>(null);
   const geo = useRef({ baseScale: 1, scale: 1, offX: 0, offY: 0 });
   const lastPointer = useRef({ x: 0, y: 0 });
+  const draggingRef = useRef(false);
+
+  // The background is a gradient + radial glow + ~200 scanline strokes. Redrawing
+  // it on every pointermove is what makes dragging feel heavy, and it only ever
+  // depends on size + accent colours — so rasterise it once and blit the cache.
+  const bgCache = useRef<{ key: string; canvas: HTMLCanvasElement } | null>(null);
+  const paintBackground = useCallback((ctx: CanvasRenderingContext2D, w: number, h: number, accent: string, deep: string) => {
+    const key = `${w}x${h}|${accent}|${deep}`;
+    if (bgCache.current?.key !== key) {
+      const off = document.createElement('canvas');
+      off.width = w;
+      off.height = h;
+      const octx = off.getContext('2d');
+      if (!octx) { drawBackground(ctx, w, h, accent, deep); return; }
+      drawBackground(octx, w, h, accent, deep);
+      bgCache.current = { key, canvas: off };
+    }
+    ctx.drawImage(bgCache.current!.canvas, 0, 0);
+  }, []);
 
   const win = useCallback((): Win => {
     const base = WINDOWS[format];
@@ -488,7 +543,7 @@ export function useFrameGenerator() {
       ? (CARD_STYLES.find((s) => s.id === cardStyle) || CARD_STYLES[0])
       : { accent: activeFrameColor.primary, accentDeep: activeFrameColor.secondary };
 
-    drawBackground(ctx, w, h, activeStyle.accent, activeStyle.accentDeep);
+    paintBackground(ctx, w, h, activeStyle.accent, activeStyle.accentDeep);
 
     const drawPhoto = () => {
       if (!img) return;
@@ -543,8 +598,11 @@ export function useFrameGenerator() {
         ctx.restore();
       }
 
-      // Curved Arc Text
-      arcText(ctx, 'HH GOA 2026', cx, cy, r + 68, Math.PI / 2, Math.PI * 0.65, "700 42px 'Bebas Neue', sans-serif", COLORS.paper);
+      // Curved arc text, sized off the frame radius so it tracks the window
+      // instead of using hard-coded pixels.
+      const arcFont = Math.round(r * 0.12);
+      const arcRadius = r + Math.round(r * 0.19);
+      arcTextBottom(ctx, 'HH GOA 2026', cx, cy, arcRadius, `700 ${arcFont}px 'Bebas Neue', sans-serif`, COLORS.paper);
 
       // Top Header Pill
       ctx.save();
@@ -615,26 +673,47 @@ export function useFrameGenerator() {
         accentDeep: activeStyle.accentDeep,
       });
     }
-  }, [format, name, role, win, titleOverride, cardStyle, frameShape, frameColor, frameBadge]);
+    // `win` already changes with frameShape, so it isn't listed separately.
+  }, [format, name, role, win, titleOverride, cardStyle, frameColor, frameBadge, paintBackground]);
 
   useEffect(() => { render(); }, [render]);
+
+  // Re-fit the photo whenever the crop window changes. This has to be an effect
+  // rather than part of setFormat: inside the click handler `format` is still the
+  // old value, so fitImage() would size the photo to the *previous* window and
+  // leave it visibly offset/mis-scaled in the new one.
+  useEffect(() => {
+    if (!imgRef.current) return;
+    setZoom(0);
+    fitImage();
+    clamp();
+    render();
+    // Intentionally keyed on the window-defining state only — re-fitting on every
+    // render would reset the user's pan/zoom as they type their name.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [format, frameShape]);
 
   const randomizeTitle = useCallback(() => {
     setTitleOverride((current) => randomBuilderTitle(current ?? builderTitle(name, role)));
   }, [name, role]);
 
+  // Canvas dimensions come from React (the width/height attributes); the re-fit
+  // is handled by the [format, frameShape] effect above once state has settled.
   const setFormat = useCallback((fmt: Format) => {
     setFormatState(fmt);
-    const canvas = canvasRef.current;
-    if (canvas) {
-      canvas.width = 1080;
-      canvas.height = fmt === 'frame' ? 1080 : 1350;
-    }
     setZoom(0);
-    if (imgRef.current) {
-      requestAnimationFrame(() => { fitImage(); render(); });
-    }
-  }, [fitImage, render]);
+    if (!captionEdited.current) setCaptionState(defaultCaption(fmt));
+  }, []);
+
+  const setCaption = useCallback((value: string) => {
+    captionEdited.current = true;
+    setCaptionState(value);
+  }, []);
+
+  const resetCaption = useCallback(() => {
+    captionEdited.current = false;
+    setCaptionState(defaultCaption(format));
+  }, [format]);
 
   const loadImageSrc = useCallback((src: string, successMsg: string) => {
     setStatus({ msg: 'Loading photo…' });
@@ -650,6 +729,7 @@ export function useFrameGenerator() {
     };
     img.onerror = () => {
       setStatus({ msg: 'Could not decode that file. If it\'s a HEIC from iPhone, try Settings → Camera → Formats → "Most Compatible".', kind: 'err' });
+      if (src.startsWith('blob:')) URL.revokeObjectURL(src);
     };
     img.src = src;
   }, [fitImage, render]);
@@ -713,20 +793,27 @@ export function useFrameGenerator() {
     if (!imgRef.current) return;
     const p = canvasPoint(clientX, clientY);
     lastPointer.current = p;
+    draggingRef.current = true;
     setDragging(true);
   }, [canvasPoint]);
 
+  // draggingRef, not the `dragging` state, gates the move: state only becomes
+  // true after React commits, so any pointermove arriving before that commit
+  // would be dropped. The state is kept purely for the grab/grabbing cursor.
   const onPointerMove = useCallback((clientX: number, clientY: number) => {
-    if (!imgRef.current || !dragging) return;
+    if (!imgRef.current || !draggingRef.current) return;
     const p = canvasPoint(clientX, clientY);
     geo.current.offX += (p.x - lastPointer.current.x);
     geo.current.offY += (p.y - lastPointer.current.y);
     lastPointer.current = p;
     clamp();
     render();
-  }, [dragging, canvasPoint, clamp, render]);
+  }, [canvasPoint, clamp, render]);
 
-  const onPointerUp = useCallback(() => setDragging(false), []);
+  const onPointerUp = useCallback(() => {
+    draggingRef.current = false;
+    setDragging(false);
+  }, []);
 
   const applyZoom = useCallback((val: number) => {
     setZoom(val);
@@ -757,41 +844,53 @@ export function useFrameGenerator() {
     return 'hhgoa-2026-boarding-pass.png';
   }, [format]);
 
+  const saveBlob = useCallback((blob: Blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename();
+    document.body.appendChild(a); a.click(); a.remove();
+    // Revoking in the same tick can cancel the download in some browsers.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }, [filename]);
+
   const download = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     canvas.toBlob(blob => {
       if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = filename();
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(url);
+      saveBlob(blob);
       setStatus({ msg: `Downloaded ${filename()}.`, kind: 'ok' });
     }, 'image/png');
-  }, [filename]);
+  }, [filename, saveBlob]);
+
+  const copyCaption = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(caption);
+      setStatus({ msg: 'Caption copied to clipboard.', kind: 'ok' });
+    } catch {
+      setStatus({ msg: 'Could not copy — select the caption and copy manually.', kind: 'err' });
+    }
+  }, [caption]);
 
   const share = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const text = caption.trim() || defaultCaption(format);
+    // Open the composer synchronously with the click; popup blockers reject
+    // window.open() once it happens inside the async toBlob callback.
+    const intent = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text);
+    const win = window.open(intent, '_blank', 'noopener,noreferrer');
     canvas.toBlob(blob => {
       if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = filename();
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(url);
-
-      const caption = format === 'frame'
-        ? "Locked in for HH GOA 2026 🌴☀️ Here's my #FrameInGoa — 28–31 Oct, Goa, India."
-        : format === 'team'
-        ? "Our team pass for HH GOA 2026 is live 🤝 #FrameInGoa — see you on the sand, 28–31 Oct."
-        : "My HH GOA 2026 boarding pass is live ⚡ #FrameInGoa — see you on the sand, 28–31 Oct.";
-      const intent = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(caption);
-      window.open(intent, '_blank');
-      setStatus({ msg: 'Graphic downloaded + X compose opened — attach the image, then post.', kind: 'ok' });
+      saveBlob(blob);
+      setStatus({
+        msg: win
+          ? 'Graphic downloaded + X compose opened — attach the image, then post.'
+          : 'Graphic downloaded. Popup blocked — allow popups to open X automatically.',
+        kind: win ? 'ok' : 'err',
+      });
     }, 'image/png');
-  }, [filename, format]);
+  }, [caption, format, saveBlob]);
 
   return {
     canvasRef, format, setFormat, hasImage, zoom, applyZoom, onWheel,
@@ -800,6 +899,7 @@ export function useFrameGenerator() {
     builderTitlePreview: titleOverride || builderTitle(name, role),
     randomizeTitle,
     cardStyle, setCardStyle,
+    caption, setCaption, resetCaption, copyCaption,
     frameShape, setFrameShape,
     frameColor, setFrameColor,
     frameBadge, setFrameBadge,

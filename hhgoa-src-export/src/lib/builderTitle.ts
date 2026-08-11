@@ -1,17 +1,21 @@
+// Short tokens (ui, ai, ml, go, pm, api, ux, ios, rust) are anchored with \b.
+// Unanchored they match inside ordinary words — "Django" contains "go",
+// "Maintainer" and "Rails" contain "ai", "Guitarist" contains "ui" — which
+// handed people a confidently wrong title.
 const KEYWORDS: [RegExp, string][] = [
-  [/react|next\.?js|frontend|front-end|ui/i, 'Pixel Whisperer'],
-  [/node|backend|back-end|api|server/i, 'Endpoint Architect'],
-  [/full ?stack/i, 'Ship-It Specialist'],
-  [/ai|ml|machine learning|llm|gpt/i, 'Prompt Alchemist'],
+  [/react|next\.?js|frontend|front-end|\bui\b/i, 'Pixel Whisperer'],
+  [/node|backend|back-end|\bapi\b|server/i, 'Endpoint Architect'],
+  [/full[- ]?stack/i, 'Ship-It Specialist'],
+  [/\bai\b|\bml\b|machine learning|\bllm\b|\bgpt\b/i, 'Prompt Alchemist'],
   [/data|analytics|sql/i, 'Signal Extractor'],
   [/solidity|web3|crypto|chain|contract/i, 'Chain Whisperer'],
-  [/design|figma|ux/i, 'Vision Renderer'],
+  [/design|figma|\bux\b/i, 'Vision Renderer'],
   [/devops|infra|cloud|kubernetes|docker/i, 'Uptime Guardian'],
-  [/ios|swift|android|kotlin|mobile/i, 'Pocket Engineer'],
-  [/product|pm/i, 'Roadmap Rogue'],
+  [/\bios\b|swift|android|kotlin|mobile/i, 'Pocket Engineer'],
+  [/product|\bpm\b/i, 'Roadmap Rogue'],
   [/security|hacker|pentest/i, 'Terminal Dweller'],
   [/game|unity|unreal/i, 'World Builder'],
-  [/rust|go|golang|systems/i, 'Bare Metal Bender'],
+  [/\brust\b|\bgo\b|golang|systems/i, 'Bare Metal Bender'],
 ];
 
 const FALLBACK = [

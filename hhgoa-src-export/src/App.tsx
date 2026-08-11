@@ -59,9 +59,11 @@ export default function App() {
         style={{
           position: 'relative',
           zIndex: 2,
-          background: 'rgba(7, 15, 12, 0.65)',
-          backdropFilter: 'blur(36px)',
-          WebkitBackdropFilter: 'blur(36px)',
+          // Kept glassy but cheaper: the canvas repaints inside this element on
+          // every drag frame, and each repaint re-runs the backdrop blur over it.
+          background: 'rgba(7, 15, 12, 0.78)',
+          backdropFilter: 'blur(18px)',
+          WebkitBackdropFilter: 'blur(18px)',
           borderTop: '2px solid rgba(205,242,79,0.3)',
           minHeight: '100vh',
         }}
@@ -429,6 +431,43 @@ export default function App() {
                     &#120143; Share to X
                   </button>
                 </div>
+                <div className="mt-4">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <label htmlFor="share-caption" className="font-mono text-[10.5px] tracking-wide" style={{ color: '#a9b8ab' }}>
+                      POST CAPTION
+                    </label>
+                    <span className="font-mono text-[10px] ml-auto" style={{ color: fg.caption.length > 260 ? '#ff8a8a' : '#a9b8ab' }}>
+                      {fg.caption.length}/280
+                    </span>
+                  </div>
+                  <textarea
+                    id="share-caption"
+                    rows={3}
+                    maxLength={280}
+                    value={fg.caption}
+                    onChange={(e) => fg.setCaption(e.target.value)}
+                    placeholder="Write your post…"
+                    className="w-full rounded-sm px-3 py-2.5 text-[13px] leading-relaxed outline-none resize-y"
+                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(243,244,234,0.14)', color: '#f3f4ea' }}
+                  />
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      onClick={fg.copyCaption}
+                      className="px-3 py-1.5 rounded-sm font-mono text-[10.5px] tracking-wide transition-colors"
+                      style={{ border: '1px solid rgba(243,244,234,0.18)', color: '#f3f4ea', background: 'rgba(255,255,255,0.02)' }}
+                    >
+                      &#128203; Copy
+                    </button>
+                    <button
+                      onClick={fg.resetCaption}
+                      className="px-3 py-1.5 rounded-sm font-mono text-[10.5px] tracking-wide transition-colors"
+                      style={{ border: '1px solid rgba(243,244,234,0.18)', color: '#a9b8ab', background: 'transparent' }}
+                    >
+                      &#8635; Reset
+                    </button>
+                  </div>
+                </div>
+
                 {fg.status.msg && (
                   <div
                     className="font-mono text-[11px] mt-3"
@@ -444,9 +483,8 @@ export default function App() {
                 className="rounded-sm p-4 text-[12px] leading-relaxed"
                 style={{ background: 'rgba(205,242,79,0.05)', border: '1px solid rgba(205,242,79,0.18)', color: '#a9b8ab' }}
               >
-                <b style={{ color: '#cdf24f' }}>About Share to X:</b> X's web composer downloads your graphic and
-                opens a pre-filled tweet with <b style={{ color: '#cdf24f' }}>#FrameInGoa</b> &mdash; attach the
-                downloaded image before posting.
+                <b style={{ color: '#cdf24f' }}>About Share to X:</b> your caption above is pre-filled into the
+                composer and the graphic downloads alongside it &mdash; attach the downloaded image before posting.
               </Reveal>
             </div>
           </div>
